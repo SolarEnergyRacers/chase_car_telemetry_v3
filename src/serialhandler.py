@@ -1,17 +1,17 @@
 import queue
-
+import logging as lg
 import serial
 from serial import SerialException
 
-import threading
+from PyQt5 import QtGui, QtCore
 import time
 
 
-class SerialHandler(threading.Thread):
-    def __init__(self, options):
-        super().__init__()
+class SerialHandler(QtCore.QThread):
+    def __init__(self, opt):
+        QtCore.QThread.__init__(self)
 
-        self.options = options
+        self.opt = opt
 
         self._com = None
         self.com_available = False
@@ -21,18 +21,16 @@ class SerialHandler(threading.Thread):
         self._in_buffer = []            # raw data received from solar car
         self.out_queue = queue.Queue()  # data that will be sent to solar car
 
-        self.last_beacon = 0.0
-
     def run(self):
         while True:
             try:
                 if self.com_available:
                     if self._com.inWaiting() > 0:
-                        input_val = self._com.read(size=10)  # reads until \n by default
+                        input_val = self._com.read_until()  # reads until \n by default
                         self._in_buffer.append(input_val)
 
                     if self.out_queue.qsize() > 0:
-                        output_val = self.out_queue.get(block=True)
+                        output_val = self.out_queue.get(block=False)
                         self._com.write(output_val.encode("ascii", "ignore"))
 
                     time.sleep(0.05)
@@ -50,16 +48,16 @@ class SerialHandler(threading.Thread):
                 self.com_available = False
                 print("TypeError")
 
-    def input_available(self):
+    def _input_available(self):
         return self.in_queue.qsize() > 0
 
-    def get_next_input(self):
-        if self.input_available():
+    def read(self):
+        if self._input_available():
             return self.in_queue.get()
         else:
             return None
 
-    def add_output(self, out_message):
+    def send(self, out_message):
         self.out_queue.put(out_message)
 
     def _connect_serial(self):
@@ -68,5 +66,5 @@ class SerialHandler(threading.Thread):
             self._com.timeout = 25
             self.com_available = True
         except SerialException:
-            print("Failed to open Serial Connection")
+            lg.warning("Failed to open Serial Connection")
             self.com_available = False
