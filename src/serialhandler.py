@@ -11,6 +11,7 @@ class SerialHandler(QtCore.QThread):
     def __init__(self, opt):
         QtCore.QThread.__init__(self)
 
+
         self.opt = opt
 
         self._com = None
@@ -27,13 +28,13 @@ class SerialHandler(QtCore.QThread):
                 if self.com_available:
                     if self._com.inWaiting() > 0:
                         input_val = self._com.read_until()  # reads until \n by default
-                        self._in_buffer.append(input_val)
+                        self.in_queue.put(input_val)
 
                     if self.out_queue.qsize() > 0:
                         output_val = self.out_queue.get(block=False)
                         self._com.write(output_val.encode("ascii", "ignore"))
 
-                    time.sleep(0.05)
+                    self.msleep(50)
 
                 elif not self.com_available:
                     self._connect_serial()
@@ -48,11 +49,8 @@ class SerialHandler(QtCore.QThread):
                 self.com_available = False
                 print("TypeError")
 
-    def _input_available(self):
-        return self.in_queue.qsize() > 0
-
     def read(self):
-        if self._input_available():
+        if self.in_queue.qsize() > 0:
             return self.in_queue.get()
         else:
             return None

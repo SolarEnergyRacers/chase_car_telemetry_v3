@@ -27,9 +27,13 @@ class CANFrame(DataInput):
     def __init__(self, opt, serial_str):
         DataInput.__init__(self)
         self.opt = opt
-        self.timestamp = int(serial_str.split(",")[0].split(":")[1], 10)
-        self.addr = int(serial_str.split(",")[1], 16)
-        self.data = int(serial_str.split(",")[2], 16)
+        self.timestamp = int(time.time())
+        self.addr = (ord(serial_str[0]) << 8) + ord(serial_str[1])
+        self.data = 0
+
+        for i in range(8):
+            self.data = (self.data << 8) + ord(serial_str[i+2])
+
 
     def get_data_i(self, length, signed, index):
         mask = 0
@@ -275,8 +279,8 @@ class CSVLine(DataInput):
         self.timestamp = int(time.time())
 
     def asDatapoints(self):
+        datapoints = []
         try:
-            datapoints = []
             substrs = [s.strip() for s in self.serial_str.split(",")]
             substrs[0] = substrs[0][2:]
             print("time: " + str(self.timestamp))
