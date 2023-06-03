@@ -8,7 +8,7 @@ import time
 
 
 class SerialHandler(QtCore.QThread):
-    def __init__(self, opt):
+    def __init__(self, opt: dict):
         QtCore.QThread.__init__(self)
 
 
@@ -18,8 +18,7 @@ class SerialHandler(QtCore.QThread):
         self.com_available = False
         self._connect_serial()
 
-        self.in_queue =  queue.Queue()  # packetized data being received from solar car
-        self._in_buffer = []            # raw data received from solar car
+        self.in_queue =  queue.Queue()  # data being received from solar car
         self.out_queue = queue.Queue()  # data that will be sent to solar car
 
     def run(self):

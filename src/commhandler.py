@@ -1,10 +1,20 @@
 import threading
 from threading import Lock
+
+from PyQt5.QtCore import pyqtSlot
+
 from datainput import *
 from PyQt5 import QtGui, QtCore
 
+from src.serialhandler import SerialHandler
+from src.datahandler import DataHandler
+
+
 class CommHandler(QtCore.QThread):
-    def __init__(self, opt, sh, dh):
+    new_input = QtCore.pyqtSignal(object)
+    update_com = QtCore.pyqtSignal(object)
+
+    def __init__(self, opt: dict, sh: SerialHandler, dh: DataHandler):
         QtCore.QThread.__init__(self)
 
         self.opt = opt
@@ -21,18 +31,22 @@ class CommHandler(QtCore.QThread):
 
     def run(self):
 
+        self.update_com.emit(self.sh.com_available) # updates com available in GUI
+
         while True:
-            if self.sh.input_available():  # handle inputs from solar car
+            if self.sh.in_queue.qsize() > 0:  # handle inputs from solar car
                 self.last_received = time.strftime("%H:%M:%S")
 
-                l = self.sh.get_next_input()
+                inp = self.sh.in_queue.get()
 
-                if len(l) == 11: # 2 Addr + 8 Data + 1 \n
-                    di = CANFrame(self.opt, l)
+                self.new_input.emit(inp) # updates GUI
+
+                if len(inp) == 11: # 2 Addr + 8 Data + 1 \n
+                    di = CANFrame(self.opt, inp)
 
                     self.dh.uploadDataInput(di)
 
-            for comm in self.uih.out_req:
-                self.sh.out_queue.append(comm)
-
             self.msleep(50)
+    @pyqtSlot()
+    def on_send(self, message):
+        self.sh.out_queue.put(message)

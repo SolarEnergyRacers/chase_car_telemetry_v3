@@ -4,8 +4,11 @@ from influxdb import InfluxDBClient
 import requests
 import logging as lg
 
+from src.datainput import DataInput
+from src.datapoint import DataPoint
+
 class DataHandler:
-    def __init__(self, opt):
+    def __init__(self, opt: dict):
         self.opt = opt
 
         try:
@@ -25,9 +28,9 @@ class DataHandler:
             lg.error("host=" + opt["influx"]["host"])
             lg.error("port=" + str(opt["influx"]["port"]))
 
-    def uploadDataInput(self, di):
+    def uploadDataInput(self, di: DataInput):
         print("upload")
         self.uploadDatapoints(di.asDatapoints())
 
-    def uploadDatapoints(self, datapoints):
+    def uploadDatapoints(self, datapoints: list[DataPoint]):
         self.client.write_points([dp.__dict__ for dp in datapoints], time_precision='s')

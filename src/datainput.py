@@ -17,14 +17,14 @@ class DataInput:
 
 
 class CANFrame(DataInput):
-    def __init__(self, opt):
+    def __init__(self, opt: dict):
         DataInput.__init__(self)
         self.opt = opt
         self.timestamp = 0
         self.addr = 0
         self.data = 0
 
-    def __init__(self, opt, serial_str):
+    def __init__(self, opt: dict, serial_str: str):
         DataInput.__init__(self)
         self.opt = opt
         self.timestamp = int(time.time())
@@ -35,7 +35,7 @@ class CANFrame(DataInput):
             self.data = (self.data << 8) + ord(serial_str[i+2])
 
 
-    def get_data_i(self, length, signed, index):
+    def get_data_i(self, length: int, signed: bool, index: int):
         mask = 0
         signed_mask = 0x1 << length  # Example: 0x100 for length = 8
 
@@ -49,10 +49,10 @@ class CANFrame(DataInput):
 
         return val
 
-    def get_data_b(self, index):
+    def get_data_b(self, index: int):
         return self.get_data_i(1, False, index) == 1
 
-    def get_data_f(self, index):
+    def get_data_f(self, index: int):
         raw = self.data >> (index * 32) & 0x00000000FFFFFFFF
 
         s = struct.pack('>L', raw)
@@ -268,11 +268,11 @@ class CANFrame(DataInput):
 
 
 class CSVLine(DataInput):
-    def __init__(self, opt):
+    def __init__(self, opt: dict):
         DataInput.__init__(self)
         self.opt = opt
 
-    def __init__(self, opt, serial_str):
+    def __init__(self, opt: dict, serial_str: str):
         DataInput.__init__(self)
         self.opt = opt
         self.serial_str = serial_str
