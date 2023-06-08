@@ -9,7 +9,7 @@
         "driver_info_length": 15
     },
     "serial": {
-        "com": "COM5",
+        "com": "COM3",
         "baud": 9600
     },
     "influx": {

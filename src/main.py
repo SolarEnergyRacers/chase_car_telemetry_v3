@@ -5,6 +5,9 @@ import sys
 from PyQt5 import QtWidgets
 
 from serialhandler import SerialHandler
+from commhandler import CommHandler
+from datahandler import DataHandler
+from mainwindow import MainWindow
 
 if __name__ == "__main__":
 
@@ -18,22 +21,23 @@ if __name__ == "__main__":
     else:
         lg.root.setLevel(lg.INFO)
 
-    # sh = SerialSim(opt)
     sh = SerialHandler(opt)
-    #dh = DataHandler(opt)
+    dh = DataHandler(opt)
 
+    ch = CommHandler(opt, sh, dh)
     # CommHandler can take any object that implements run, input_available, get_next_input and add_output in place of sh
-    # ch = CommHandler(opt, sh, dh)
-    #
-    # app = QtWidgets.QApplication(sys.argv)
-    # uih = UIHandler(ch)
-    # uih.show()
-    #
-    # ch.mutex.acquire()
-    # ch.setUIHandler(uih)
-    # ch.mutex.release()
-    #
-    # sh.start()
-    # ch.start()
 
-    #sys.exit(app.exec_())
+
+    app = QtWidgets.QApplication(sys.argv)
+
+    mw = MainWindow(None)
+    mw.show()
+
+    sh.start()
+    #ch.start()
+
+    sys.exit(app.exec_())
+
+    #ch.wait()
+
+

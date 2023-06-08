@@ -1,0 +1,4 @@
+PyQt5~=5.15.7
+requests~=2.25.1
+influxdb~=5.3.1
+pyserial~=3.5
