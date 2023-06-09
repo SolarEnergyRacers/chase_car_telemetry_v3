@@ -24,15 +24,17 @@ class CANFrame(DataInput):
         self.addr = 0
         self.data = 0
 
-    def __init__(self, opt: dict, serial_str: str):
+    def __init__(self, opt: dict, serial_bytes: str):
         DataInput.__init__(self)
         self.opt = opt
         self.timestamp = int(time.time())
-        self.addr = (ord(serial_str[0]) << 8) + ord(serial_str[1])
-        self.data = 0
 
-        for i in range(8):
-            self.data = (self.data << 8) + ord(serial_str[i+2])
+        if opt["comm"]["hex_string"]:
+            #todo
+            pass
+        else:
+            self.addr = int.from_bytes(serial_bytes[0:2])
+            self.data = int.from_bytes(serial_bytes[2:10])
 
 
     def get_data_i(self, length: int, signed: bool, index: int):

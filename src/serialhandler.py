@@ -8,67 +8,85 @@ import time
 
 
 class SerialHandler(QtCore.QThread):
+    new_input = QtCore.pyqtSignal(object)
+    update_status = QtCore.pyqtSignal(bool)
+
     def __init__(self, opt: dict):
         QtCore.QThread.__init__(self)
-
-
         self.opt = opt
+        self.buffer = bytearray()
 
         self._com = None
         self.com_available = False
         self._connect_serial()
 
-        self.in_queue =  queue.Queue()  # data being received from solar car
-        self.out_queue = queue.Queue()  # data that will be sent to solar car
-
     def run(self):
         while True:
             try:
 
-                if self.com_available:
+                if self._com.isOpen() and self._com.inWaiting() > 0:
+                    input_val = self._com.read_until()
+                    lg.info(f"Serial input: {input_val} length: {len(input_val)}")
+                    if self.opt["comm"]["hex_string"]:
+                        self.handle_input_hex(input_val)
+                    else:
+                        self.handle_input_bytes(input_val)
 
-
-
-                    if self._com.inWaiting() > 0:
-                        #input_val = self._com.read_until("\n")  # reads until \n by default
-                        input_val = self._com.readline()
-                        print("inp:")
-                        print(input_val)
-                        self.in_queue.put(input_val)
-
-                    if self.out_queue.qsize() > 0:
-                        output_val = self.out_queue.get(block=False)
-                        self._com.write(output_val.encode("ascii", "ignore"))
-
-
-
-                elif not self.com_available:
+                elif not self._com.isOpen():
                     self._connect_serial()
                     time.sleep(1) # wait one second before trying to reconnect to serial port
 
             except serial.SerialException:
                 self._com.close()
                 self.com_available = False
-                print("SerialException")
+                self.update_status.emit(self.com_available)
+                lg.warning("Serial: SerialException")
             except TypeError:
                 self._com.close()
                 self.com_available = False
-                print("TypeError")
+                self.update_status.emit(self.com_available)
+                lg.warning("Serial: TypeError")
 
-    def read(self):
-        if self.in_queue.qsize() > 0:
-            return self.in_queue.get()
-        else:
-            return None
 
     def send(self, out_message):
-        self.out_queue.put(out_message)
+        if self.com_available:
+            self._com.write(out_message.encode("ascii", "ignore"))
+
+    def handle_input_bytes(self, input_val):
+
+        if input_val[0] >= 0xF8 and len(input_val) == 11:
+            self.new_input.emit(input_val)
+            self.buffer = bytearray()
+        elif len(input_val) < 11:
+            if len(self.buffer) + len(input_val) == 11 and input_val[-1] == 13: #13 is \n (LF), maybe change to 10 (CR)
+                self.new_input.emit(self.buffer + input_val)
+                self.buffer = bytearray()
+            elif len(self.buffer) + len(input_val) < 11 and len(self.buffer) > 0:
+                self.buffer += input_val
+            elif len(self.buffer) == 0 and input_val[0] >= 0xF8:
+                self.buffer = input_val
+            else:
+                lg.warning(f"A. Couldn't handle partial input {input_val}")
+        else:
+            lg.warning(f"B. Couldn't handle partial input {input_val}")
+
+    def handle_input_hex(self, input_val):
+        pass
+        # todo
 
     def _connect_serial(self):
         try:
+            lg.info("Trying to open Serial...")
             self._com = serial.Serial(self.opt["serial"]["com"], self.opt["serial"]["baud"])
-            self._com.timeout = 25
+            self._com.timeout = 1
             self.com_available = True
+            lg.info("Opened Serial Connection")
         except SerialException:
             lg.warning("Failed to open Serial Connection")
             self.com_available = False
+        finally:
+            self.update_status.emit(self.com_available)
+
+
+
+

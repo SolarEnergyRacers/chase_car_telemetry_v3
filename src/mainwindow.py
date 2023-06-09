@@ -1,42 +1,49 @@
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import pyqtSlot
 
+import logging as lg
+from datetime import datetime
+
 from ui_mainwindow import Ui_mainWindow
 
 class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
-    send = QtCore.pyqtSignal(object)
+    send = QtCore.pyqtSignal(str)
 
-    def __init__(self, ch, parent=None):
+    def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent=parent)
         self.setupUi(self)
 
-        self.ch = ch
-        self.btnSend.clicked.connect(lambda: self.on_click_send())
-        self.btnSave.clicked.connect(lambda: self.on_click_save())
+        #self.btnSend.clicked.connect(lambda: self.on_click_send())
+        #self.btnSave.clicked.connect(lambda: self.on_click_save())
+
+        self.btnSend.clicked.connect(self.on_click_send)
+        self.btnSave.clicked.connect(self.on_click_save)
+
+        self.plainTextEdit.setPlainText("")
 
 
-    @pyqtSlot()
     def on_click_send(self):
         txt = self.leditInput.text()
         if self.cbAddNL:
-            txt += '\n'
-        #self.ch.out_queue.put(txt)
-        print(txt)
-        self.plainTextEdit.appendPlainText(txt)
-        self.leditInput.setText('')
+            txt += chr(13)
 
-    @pyqtSlot()
+        curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+        self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
+        self.leditInput.setText('')
+        self.send.emit(txt)
+
+
     def on_click_save(self):
+        print("save!!")
         #todo
         pass
 
-    @pyqtSlot()
-    def on_new_input(self, data):
-        #todo formating
-        print('gui received:' + data)
-        self.plainTextEdit.appendPlainText(data)
+    def handle_new_input(self, data):
+        lg.info(f'gui received: {data.hex(" ")}')
 
-    @pyqtSlot()
+        curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+        self.plainTextEdit.appendPlainText(f'{curr_time} << {data.hex(" ")}')
+
     def on_update_com(self, available):
         if available:
             self.lblCommAvailable.setText("COM available: TRUE")
