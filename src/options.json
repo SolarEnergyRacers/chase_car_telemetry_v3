@@ -22,16 +22,16 @@
             "mppt3_id": "0x6C0"
         },
         "BMS": {
-            "base_addr": "0x500"
+            "base_addr": "0x700"
         },
         "AC": {
-            "base_addr": "0x200"
+            "base_addr": "0x630"
         },
         "DC": {
-            "base_addr": "0x100"
+            "base_addr": "0x620"
         },
         "MC": {
-            "base_addr": "0x100"
+            "base_addr": "0x000"
         }
     }
 }

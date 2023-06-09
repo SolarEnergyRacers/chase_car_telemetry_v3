@@ -33,9 +33,8 @@ class CANFrame(DataInput):
             #todo
             pass
         else:
-            self.addr = int.from_bytes(serial_bytes[0:2])
-            self.data = int.from_bytes(serial_bytes[2:10])
-
+            self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7F
+            self.data = int.from_bytes(serial_bytes[2:10], 'big')
 
     def get_data_i(self, length: int, signed: bool, index: int):
         mask = 0
@@ -67,7 +66,13 @@ class CANFrame(DataInput):
         return int(self.opt["CAN"]["MPPT"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def isACFrame(self):
-        return int(self.opt["CAN"]["AC"]["base_addr"], 16) == (self.addr & 0xF00)
+        return int(self.opt["CAN"]["AC"]["base_addr"], 16) == (self.addr & 0xFF0)
+
+    def isDCFrame(self):
+        return int(self.opt["CAN"]["DC"]["base_addr"], 16) == (self.addr & 0xFF0)
+
+    def isMCFrame(self):
+        return int(self.opt["CAN"]["MC"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def asDatapoints(self):
         datapoints = []
@@ -260,11 +265,27 @@ class CANFrame(DataInput):
                                             {"value": self.get_data_f(0)}))
                 datapoints.append(
                     DataPoint("mppt_conn_temp", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(1)}))
-        elif self.isACFrame():
-            pass
-            # ToDo
+        elif self.isDCFrame():
+            if self.addr & 0xF == 0x0:
+                datapoints.append(DataPoint("dc_lifesign", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
+                datapoints.append(DataPoint("dc_potentiometer", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)}))
+                datapoints.append(DataPoint("dc_acceleration", {}, self.timestamp, {"value":self.get_data_i(16, False, 2)}))
+                datapoints.append(DataPoint("dc_deceleration", {}, self.timestamp, {"value":self.get_data_i(16, False, 3)}))
+            elif self.addr & 0xF == 0x1:
+                datapoints.append(DataPoint("targetspeed", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
+                datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)}))
+                datapoints.append(DataPoint("accel_display", {}, self.timestamp, {"value":self.get_data_i(8, False, 4)}))
+                datapoints.append(DataPoint("speed", {}, self.timestamp, {"value":self.get_data_i(8, False, 6)}))
+
+                drive_direction = 'fwd' if self.get_data_b(56) else 'rwd'
+                datapoints.append(DataPoint("drive_direction", {}, self.timestamp, {"value":drive_direction}))
+                datapoints.append(DataPoint("brake_pedal", {}, self.timestamp, {"value":self.get_data_b(57)}))
+                datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
+                datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
+
+
         else:  # Prob. transmission error or wrong addresses configured
-            lg.warning("Couldn't assign CAN Frame from: " + str(self.addr))
+            lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
 
         return datapoints
 
