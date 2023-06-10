@@ -1,6 +1,8 @@
 import queue
 import logging as lg
 import serial
+import traceback
+
 from serial import SerialException
 
 from PyQt5 import QtGui, QtCore
@@ -23,8 +25,7 @@ class SerialHandler(QtCore.QThread):
     def run(self):
         while True:
             try:
-
-                if self._com.isOpen() and self._com.inWaiting() > 0:
+                if self.com_available and self._com.inWaiting() > 0:
                     input_val = self._com.read_until()
                     lg.info(f"Serial input: {input_val} length: {len(input_val)}")
                     if self.opt["comm"]["hex_string"]:
@@ -32,20 +33,29 @@ class SerialHandler(QtCore.QThread):
                     else:
                         self.handle_input_bytes(input_val)
 
-                elif not self._com.isOpen():
+                elif not self.com_available:
                     self._connect_serial()
-                    time.sleep(1) # wait one second before trying to reconnect to serial port
+                    self.usleep(int(1 * 10e5)) # wait one second before trying to reconnect to serial port
 
             except serial.SerialException:
                 self._com.close()
                 self.com_available = False
                 self.update_status.emit(self.com_available)
                 lg.warning("Serial: SerialException")
+                traceback.print_exc()
             except TypeError:
-                self._com.close()
+                if self._com is not None:
+                    self._com.close()
                 self.com_available = False
                 self.update_status.emit(self.com_available)
                 lg.warning("Serial: TypeError")
+                traceback.print_exc()
+            except AttributeError:
+                self.com_available = False
+                self.update_status.emit(self.com_available)
+                lg.warning("Serial: AttributeError")
+                traceback.print_exc()
+                #this is caused if the serial cannot be opened when program starts
 
 
     def send(self, out_message):
@@ -71,8 +81,9 @@ class SerialHandler(QtCore.QThread):
             lg.warning(f"B. Couldn't handle partial input {input_val}")
 
     def handle_input_hex(self, input_val):
-        pass
-        # todo
+        if len(input_val) == 21:
+            self.new_input.emit(input_val)
+            # todo implement buffer
 
     def _connect_serial(self):
         try:

@@ -30,8 +30,9 @@ class CANFrame(DataInput):
         self.timestamp = int(time.time())
 
         if opt["comm"]["hex_string"]:
-            #todo
-            pass
+            serial_str = serial_bytes.decode("ascii")
+            self.addr = int(serial_str[0:4], 16) & 0x7F
+            self.data = int(serial_str[4:20], 16) & 0x7F
         else:
             self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7F
             self.data = int.from_bytes(serial_bytes[2:10], 'big')
