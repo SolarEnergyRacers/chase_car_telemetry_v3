@@ -6,8 +6,8 @@
         "hex_string": false
     },
     "serial": {
-        "com": "COM3",
-        "baud": 9600
+        "com": "COM4",
+        "baud": 115200
     },
     "influx": {
         "host": "localhost",
@@ -17,9 +17,9 @@
     "CAN": {
         "MPPT": {
             "base_addr": "0x600",
-            "mppt1_id": "0x6A0",
-            "mppt2_id": "0x6B0",
-            "mppt3_id": "0x6C0"
+            "mppt1_id": "0x600",
+            "mppt2_id": "0x610",
+            "mppt3_id": "0x620"
         },
         "BMS": {
             "base_addr": "0x700"
@@ -28,10 +28,10 @@
             "base_addr": "0x630"
         },
         "DC": {
-            "base_addr": "0x620"
+            "base_addr": "0x660"
         },
         "MC": {
-            "base_addr": "0x000"
+            "base_addr": "0x500"
         }
     }
 }

@@ -31,11 +31,13 @@ class CANFrame(DataInput):
 
         if opt["comm"]["hex_string"]:
             serial_str = serial_bytes.decode("ascii")
-            self.addr = int(serial_str[0:4], 16) & 0x7F
-            self.data = int(serial_str[4:20], 16) & 0x7F
+            self.addr = int(serial_str[0:4], 16) & 0x7FF
+            self.data = int(serial_str[4:20], 16)
         else:
-            self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7F
+            self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7FF
             self.data = int.from_bytes(serial_bytes[2:10], 'big')
+
+            print(f"my addr:{hex(self.addr)}")
 
     def get_data_i(self, length: int, signed: bool, index: int):
         mask = 0
@@ -61,10 +63,14 @@ class CANFrame(DataInput):
         return struct.unpack('>f', s)[0]
 
     def isBMSFrame(self):
-        return int(self.opt["CAN"]["MPPT"]["base_addr"], 16) == (self.addr & 0xF00)
+        return int(self.opt["CAN"]["BMS"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def isMPPTFrame(self):
-        return int(self.opt["CAN"]["MPPT"]["base_addr"], 16) == (self.addr & 0xF00)
+        #mppt1 = int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16) == self.addr & 0xFF
+        #mppt2 = int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16) == self.addr & 0xFF
+        #mppt3 = int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16) == self.addr & 0xFF
+        #return self.addr >= 0x600 and self.addr < 0x630
+        return False
 
     def isACFrame(self):
         return int(self.opt["CAN"]["AC"]["base_addr"], 16) == (self.addr & 0xFF0)
@@ -73,7 +79,7 @@ class CANFrame(DataInput):
         return int(self.opt["CAN"]["DC"]["base_addr"], 16) == (self.addr & 0xFF0)
 
     def isMCFrame(self):
-        return int(self.opt["CAN"]["MC"]["base_addr"], 16) == (self.addr & 0xF00)
+        return int(self.opt["CAN"]["MC"]["base_addr"], 16) == (self.addr & 0xFF0)
 
     def asDatapoints(self):
         datapoints = []
@@ -102,7 +108,7 @@ class CANFrame(DataInput):
                     ct = DataPoint("cell_temp", {"cmu_num": cmu_num}, self.timestamp,
                                    {"value": self.get_data_i(16, True, 3) / 10})
 
-                    datapoints.append([heartbeat, pt, ct])
+                    #datapoints.append([heartbeat, pt, ct])
 
                 elif self.addr & 0xFF in [0x02, 0x05, 0x08, 0x0B, 0x03, 0x06, 0x09, 0x0C]:  # Voltages 1 & 2
                     index_offset = 0
@@ -179,6 +185,8 @@ class CANFrame(DataInput):
                 pass
         # MPPT
         elif self.isMPPTFrame():  # handled separately
+            print("MPPT!!")
+
             mppt_id = "Err:" + str(self.addr)
 
             if self.addr == int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16):
@@ -284,10 +292,11 @@ class CANFrame(DataInput):
                 datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
                 datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
 
-
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
 
+        print("DATAPOINTS:")
+        print(datapoints)
         return datapoints
 
 

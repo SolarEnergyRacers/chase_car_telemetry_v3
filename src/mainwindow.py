@@ -42,7 +42,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         lg.info(f'gui received: {data.hex(" ")}')
 
         curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-        self.plainTextEdit.appendPlainText(f'{curr_time} << {data.hex(" ")}')
+        addr = int.from_bytes(data[0:2], 'big') & 0x7FF
+
+        self.plainTextEdit.appendPlainText(f'{curr_time} << {data.hex(" ")} addr: {hex(addr)}')
 
     def on_update_com(self, available):
         if available:

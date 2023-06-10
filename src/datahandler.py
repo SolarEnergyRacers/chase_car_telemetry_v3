@@ -6,6 +6,7 @@ import logging as lg
 
 from datainput import DataInput, CANFrame
 from datapoint import DataPoint
+import dataclasses
 
 class DataHandler:
     def __init__(self, opt: dict):
@@ -31,9 +32,13 @@ class DataHandler:
     def handle_new_input(self, input_val):
         di = CANFrame(self.opt, input_val)
         self.uploadDataInput(di)
+
     def uploadDataInput(self, di: DataInput):
         lg.info("uploading Datapoints")
         self.uploadDatapoints(di.asDatapoints())
 
     def uploadDatapoints(self, datapoints: list[DataPoint]):
+        
+        #if len(datapoints) == 1 and isinstance(datapoints[0], list):
+        #    datapoints = datapoints[0]
         self.client.write_points([dp.__dict__ for dp in datapoints], time_precision='s')
