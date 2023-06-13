@@ -80,6 +80,7 @@ class SerialHandler(QtCore.QThread):
         else:
             lg.warning(f"B. Couldn't handle partial input {input_val}")
 
+    #not used
     def handle_input_hex(self, input_val):
         if len(input_val) == 21:
             self.new_input.emit(input_val)

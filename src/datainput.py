@@ -24,10 +24,11 @@ class CANFrame(DataInput):
         self.addr = 0
         self.data = 0
 
-    def __init__(self, opt: dict, serial_bytes: str):
+    def __init__(self, opt: dict, serial_bytes):
         DataInput.__init__(self)
         self.opt = opt
         self.timestamp = int(time.time())
+        self.serial_bytes = serial_bytes
 
         if opt["comm"]["hex_string"]:
             serial_str = serial_bytes.decode("ascii")
@@ -35,42 +36,39 @@ class CANFrame(DataInput):
             self.data = int(serial_str[4:20], 16)
         else:
             self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7FF
-            self.data = int.from_bytes(serial_bytes[2:10], 'big')
-
+            self.data = int.from_bytes(serial_bytes[2:10], 'little')
             print(f"my addr:{hex(self.addr)}")
 
     def get_data_i(self, length: int, signed: bool, index: int):
-        mask = 0
-        signed_mask = 0x1 << length  # Example: 0x100 for length = 8
+        raw_data = self.serial_bytes[2:10]
+        num_bytes = length // 8
+        offset = num_bytes * index
 
-        for i in range(int(length / 4)):  # Example: 0xFF for length = 8
-            mask = (mask << 1) | 0xF
-
-        val = self.data >> (index * length) & mask
-
-        if signed and val >= (0x8 << (length - 4)):  # Example (0x8 << (length - 4)): 0x80 for length = 8
-            val -= signed_mask
-
-        return val
+        res = int.from_bytes(raw_data[0+offset:num_bytes+offset], byteorder='little', signed=signed)
+        return res
 
     def get_data_b(self, index: int):
         return self.get_data_i(1, False, index) == 1
 
-    def get_data_f(self, index: int):
+    def get_data_f(self, index: int, little_endian: bool = False):
         raw = self.data >> (index * 32) & 0x00000000FFFFFFFF
 
         s = struct.pack('>L', raw)
-        return struct.unpack('>f', s)[0]
+
+        if little_endian:
+            return struct.unpack('<f', s)[0]
+        else:
+            return struct.unpack('>f', s)[0]
 
     def isBMSFrame(self):
         return int(self.opt["CAN"]["BMS"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def isMPPTFrame(self):
-        #mppt1 = int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16) == self.addr & 0xFF
-        #mppt2 = int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16) == self.addr & 0xFF
-        #mppt3 = int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16) == self.addr & 0xFF
-        #return self.addr >= 0x600 and self.addr < 0x630
-        return False
+        mppt1 = int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16) == self.addr & 0xFF0
+        mppt2 = int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16) == self.addr & 0xFF0
+        mppt3 = int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16) == self.addr & 0xFF0
+
+        return mppt1 or mppt2 or mppt3
 
     def isACFrame(self):
         return int(self.opt["CAN"]["AC"]["base_addr"], 16) == (self.addr & 0xFF0)
@@ -83,64 +81,76 @@ class CANFrame(DataInput):
 
     def asDatapoints(self):
         datapoints = []
-        mppt_baseaddr = int(self.opt["CAN"]["MPPT"]["base_addr"], 16)
         bms_baseaddr = int(self.opt["CAN"]["BMS"]["base_addr"], 16)
 
         # BMS
         if self.isBMSFrame():
             if self.addr == bms_baseaddr:  # BMU Heartbeat/Serialnumber
-                datapoints.append(DataPoint("bms_heartbeat",
-                                            {"bmu_id": self.get_data_i(32, False, 1)},
-                                            self.timestamp,
-                                            {"value": True}))
+                datapoints.append(DataPoint(
+                    "bms_heartbeat",
+                    {"bmu_id": self.get_data_i(32, False, 1)},
+                    self.timestamp,
+                    {"value": True}))
 
-            elif self.addr & 0xFF <= 0xEF:  # CMU Status, cell data
-                cmu_num = math.floor(
-                    ((self.addr & 0xFF) - 1) / 3)  # CMU0 = 0x601, 0x602, 0x603 CMU1 = 0x604, 0x605 etc..
+            elif self.addr & 0xFF <= 0x0C:  # CMU Status, cell data
+                # CMU0 = 0x601, 0x602, 0x603 CMU1 = 0x604, 0x605 etc..
+                cmu_num = math.floor(((self.addr & 0xFF) - 1) / 3)
 
                 if self.addr & 0xFF in [0x01, 0x04, 0x07, 0x0A]:  # CMU Serial Number & Temperatures
-                    heartbeat = DataPoint("cmu_heartbeat", {"cmu_id": self.get_data_i(32, False, 0),
-                                                            "cmu_num": cmu_num},
-                                          self.timestamp, {"value": True})
+                    heartbeat = DataPoint(
+                        "cmu_heartbeat",
+                        {"cmu_id": self.get_data_i(32, False, 0),
+                        "cmu_num": cmu_num},
+                        self.timestamp, {"value": True})
 
-                    pt = DataPoint("pcb_temp", {"cmu_num": cmu_num}, self.timestamp,
-                                   {"value": self.get_data_i(16, True, 2) / 10})
-                    ct = DataPoint("cell_temp", {"cmu_num": cmu_num}, self.timestamp,
-                                   {"value": self.get_data_i(16, True, 3) / 10})
+                    pt = DataPoint(
+                        "pcb_temp",
+                        {"cmu_num": cmu_num},
+                        self.timestamp,
+                        {"value": self.get_data_i(16, True, 2) / 10})
 
-                    #datapoints.append([heartbeat, pt, ct])
+                    ct = DataPoint(
+                        "cell_temp",
+                        {"cmu_num": cmu_num},
+                        self.timestamp,
+                        {"value": self.get_data_i(16, True, 3) / 10})
 
-                elif self.addr & 0xFF in [0x02, 0x05, 0x08, 0x0B, 0x03, 0x06, 0x09, 0x0C]:  # Voltages 1 & 2
+                    datapoints.extend([heartbeat, pt, ct])
+
+                elif self.addr & 0xFF in [0x02, 0x05, 0x08, 0x0B, 0x03, 0x06, 0x09, 0x0C]:# Voltages 1 & 2
+
                     index_offset = 0
                     if (self.addr & 0xFF) % 3 == 0:
                         index_offset = 4
 
                     for i in range(4):
-                        cell_volt = DataPoint("cell_voltage", {"cmu_num": cmu_num,
-                                                               "cell_num": i + index_offset,
-                                                               "cell_index": cmu_num * 8 + i + index_offset},
-                                              self.timestamp, {"value": self.get_data_i(16, True, i)})
-                        datapoints.append(cell_volt)
+                        cell_volt = DataPoint(
+                            "cell_voltage",
+                            {"cmu_num": cmu_num,
+                               "cell_num": i + index_offset,
+                               "cell_index": cmu_num * 8 + i + index_offset},
+                            self.timestamp,
+                            {"value": self.get_data_i(16, True, i) / 1000})
 
+                        datapoints.append(cell_volt) # Cell
             elif self.addr & 0xFF == 0xF4:  # Pack SOC
-                datapoints.append(DataPoint("soc_ah", {}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(DataPoint("soc_perc", {}, self.timestamp, {"value": self.get_data_f(1)}))
-
-            elif self.addr & 0xFF == 0xF5:  # Balance SOC
-                datapoints.append(DataPoint("balance_ah", {}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(DataPoint("balance_perc", {}, self.timestamp, {"value": self.get_data_f(1)}))
-
-            elif self.addr & 0xFF == 0xF6:  # Charger Control Info
-                # prob not relevant
                 pass
+                #datapoints.append(DataPoint("soc_ah", {}, self.timestamp, {"value": self.get_data_f(1)}))
+                #datapoints.append(DataPoint("soc_perc", {}, self.timestamp, {"value": self.get_data_f(0)}))
+            elif self.addr & 0xFF == 0xF5:  # Balance SOC (not transmitted)
+                pass
+                #datapoints.append(DataPoint("balance_ah", {}, self.timestamp, {"value": self.get_data_f(1)}))
+                #datapoints.append(DataPoint("balance_perc", {}, self.timestamp, {"value": self.get_data_f(2)}))
+            elif self.addr & 0xFF == 0xF6:  # Charger Control Info (not transmitted)
+                pass
+
             elif self.addr & 0xFF == 0xF7:  # Precharge Status
                 # contactors
                 datapoints.append(DataPoint("err_cont_1_driver", {}, self.timestamp, {"value": self.get_data_b(0)}))
                 datapoints.append(DataPoint("err_cont_2_driver", {}, self.timestamp, {"value": self.get_data_b(1)}))
                 datapoints.append(DataPoint("output_cont_1_driver", {}, self.timestamp, {"value": self.get_data_b(3)}))
                 datapoints.append(DataPoint("output_cont_2_driver", {}, self.timestamp, {"value": self.get_data_b(4)}))
-                datapoints.append(
-                    DataPoint("err_cont_12v_supply", {}, self.timestamp, {"value": not self.get_data_b(5)}))
+                datapoints.append(DataPoint("err_cont_12v_supp", {}, self.timestamp, {"value": not self.get_data_b(5)}))
                 datapoints.append(DataPoint("err_cont_3_driver", {}, self.timestamp, {"value": self.get_data_b(6)}))
                 datapoints.append(DataPoint("output_cont_3_driver", {}, self.timestamp, {"value": self.get_data_b(7)}))
 
@@ -166,29 +176,59 @@ class CANFrame(DataInput):
                 datapoints.append(
                     DataPoint("cont_voltage", {}, self.timestamp, {"value": self.get_data_i(16, False, 1) / 1000}))
 
-                datapoints.append(
-                    DataPoint("prec_timer_elapsed", {}, self.timestamp, {"value": self.get_data_b(6 * 8)}))
+                datapoints.append(DataPoint("prec_timer_elaps", {}, self.timestamp, {"value": self.get_data_b(6 * 8)}))
                 datapoints.append(DataPoint("prec_timer", {}, self.timestamp, {"value": self.get_data_i(8, False, 7)}))
-
             elif self.addr & 0xFF == 0xF8:  # min/max cell voltage
-                # redundant
-                pass
+                min_cell_volt = DataPoint(
+                    "min_voltage",
+                    {"cmu_num": self.get_data_i(8, False, 4),
+                     "cell_num": self.get_data_i(8, False, 5)},
+                    self.timestamp,
+                    {"value": self.get_data_i(16, False, 0) / 1000})
+
+                datapoints.append(min_cell_volt)
+
+                max_cell_volt = DataPoint(
+                    "max_voltage",
+                    {"cmu_num": self.get_data_i(8, False, 6),
+                     "cell_num": self.get_data_i(8, False, 7)},
+                    self.timestamp,
+                    {"value": self.get_data_i(16, False, 1) / 1000})
+
+                datapoints.append(max_cell_volt)
             elif self.addr & 0xFF == 0xF9:  # min/max cell temp
-                pass
+                min_cell_temp = DataPoint(
+                    "min_temp",
+                    {"cmu_num": self.get_data_i(8, False, 4),
+                     "cell_num": self.get_data_i(8, False, 5)},
+                    self.timestamp,
+                    {"value": self.get_data_i(16, False, 0) / 1000})
+
+                datapoints.append(min_cell_temp)
+
+                max_cell_temp = DataPoint(
+                    "max_temp",
+                    {"cmu_num": self.get_data_i(8, False, 6),
+                     "cell_num": self.get_data_i(8, False, 7)},
+                    self.timestamp,
+                    {"value": self.get_data_i(16, False, 1) / 1000})
+
+                datapoints.append(max_cell_temp)
             elif self.addr & 0xFF == 0xFA:  # Pack Voltage & Current
-                pass
+                datapoints.append(DataPoint("batt_volt", {}, self.timestamp, {"value": self.get_data_i(32, False, 0)/1000}))
+                datapoints.append(DataPoint("batt_curr", {}, self.timestamp, {"value": self.get_data_i(32, True, 1)/1000}))
             elif self.addr & 0xFF == 0xFB:  # Pack Status
                 pass
             elif self.addr & 0xFF == 0xFC:  # Fan & 12V Status
                 pass
             elif self.addr & 0xFF == 0xFD:  # Ext. Pack Status
                 pass
+                # todo implement ext pack status
         # MPPT
         elif self.isMPPTFrame():  # handled separately
             print("MPPT!!")
 
             mppt_id = "Err:" + str(self.addr)
-
             if self.addr == int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16):
                 mppt_id = "1"
             elif self.addr == int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16):
@@ -197,89 +237,209 @@ class CANFrame(DataInput):
                 mppt_id = "3"
 
             if self.addr & 0xF == 0x0:  # MPPT input
-                datapoints.append(
-                    DataPoint("mppt_in_voltage", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(
-                    DataPoint("mppt_in_current", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(1)}))
+                datapoints.append( DataPoint(
+                    "mppt_in_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append( DataPoint(
+                    "mppt_in_current",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
             elif self.addr & 0xF == 0x1:  # MPPT output
-                datapoints.append(
-                    DataPoint("mppt_out_voltage", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(
-                    DataPoint("mppt_out_current", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(1)}))
+                datapoints.append( DataPoint(
+                    "mppt_out_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append( DataPoint(
+                    "mppt_out_current",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
             elif self.addr & 0xF == 0x2:  # Temps
-                datapoints.append(
-                    DataPoint("mppt_mosfet_temp", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(DataPoint("mppt_controller_temp", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_f(1)}))
+                datapoints.append(DataPoint(
+                    "mppt_mosfet_temp",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_controller_temp",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
             elif self.addr & 0xF == 0x3:  # Aux Power voltages
-                datapoints.append(
-                    DataPoint("aux_12V_voltage", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(0)}))
-                datapoints.append(
-                    DataPoint("aux_3V_voltage", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(1)}))
+                datapoints.append(DataPoint(
+                    "aux_12V_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append(DataPoint(
+                    "aux_3V_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
             elif self.addr & 0xF == 0x4:  # Limits
-                datapoints.append(DataPoint("mppt_max_out_voltage", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_f(0)}))
-                datapoints.append(DataPoint("mppt_max_in_current", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_f(1)}))
+                datapoints.append(DataPoint(
+                    "mppt_max_out_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_max_in_current",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
             elif self.addr & 0xF == 0x5:  # Status
-                datapoints.append(DataPoint("mppt_can_rx_err", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_i(8, False, 0)}))
-                datapoints.append(DataPoint("mppt_can_tx_err", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_i(8, False, 1)}))
-                datapoints.append(DataPoint("mppt_can_overflow", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_i(8, False, 2)}))
+                datapoints.append(DataPoint(
+                    "mppt_can_rx_err",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_i(8, False, 0)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_can_tx_err",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                     {"value": self.get_data_i(8, False, 1)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_can_overflow",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_i(8, False, 2)}))
 
                 # Error Flags
-                datapoints.append(DataPoint("mppt_low_array_power", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(24)}))
-                datapoints.append(DataPoint("mppt_mosfet_overheat", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(25)}))
-                datapoints.append(
-                    DataPoint("mppt_batt_low", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_b(26)}))
-                datapoints.append(
-                    DataPoint("mppt_batt_full", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_b(27)}))
+                datapoints.append(DataPoint(
+                    "mppt_low_array_power",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(24)}))
 
-                datapoints.append(DataPoint("mppt_12V_undervoltage", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(28)}))
+                datapoints.append(DataPoint(
+                    "mppt_mosfet_overheat",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(25)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_batt_low",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(26)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_batt_full",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(27)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_12V_undervoltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(28)}))
+
                 # b(29) is reserved
-                datapoints.append(DataPoint("mppt_hw_over_curr", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(30)}))
-                datapoints.append(DataPoint("mppt_hw_over_volt", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(31)}))
+                datapoints.append(DataPoint(
+                    "mppt_hw_over_curr",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(30)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_hw_over_volt",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(31)}))
 
                 # Limit Flags
-                datapoints.append(DataPoint("mppt_inp_curr_min", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(32)}))
-                datapoints.append(DataPoint("mppt_inp_curr_max", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(33)}))
-                datapoints.append(DataPoint("mppt_out_volt_max", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(34)}))
-                datapoints.append(DataPoint("mppt_lim_mosfet_temp", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(35)}))
+                datapoints.append(DataPoint(
+                    "mppt_inp_curr_min",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(32)}))
 
-                datapoints.append(DataPoint("mppt_dutycycle_min", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(36)}))
-                datapoints.append(DataPoint("mppt_dutycycle_max", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_b(37)}))
-                datapoints.append(
-                    DataPoint("mppt_local", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_b(38)}))
-                datapoints.append(
-                    DataPoint("mppt_global", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_b(39)}))
+                datapoints.append(DataPoint(
+                    "mppt_inp_curr_max",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(33)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_out_volt_max",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(34)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_lim_mosfet_temp",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(35)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_dutycycle_min",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(36)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_dutycycle_max",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(37)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_local",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(38)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_global",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(39)}))
 
                 # Mode
-                datapoints.append(
-                    DataPoint("mppt_is_on", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_b(40)}))
+                datapoints.append(DataPoint(
+                    "mppt_is_on",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_b(40)}))
+
             elif self.addr & 0xF == 0x6:  # Power Connector
-                datapoints.append(DataPoint("mppt_conn_out_voltage", {"mppt_id": mppt_id}, self.timestamp,
-                                            {"value": self.get_data_f(0)}))
-                datapoints.append(
-                    DataPoint("mppt_conn_temp", {"mppt_id": mppt_id}, self.timestamp, {"value": self.get_data_f(1)}))
+                datapoints.append(DataPoint(
+                    "mppt_conn_out_voltage",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(1, True)}))
+
+                datapoints.append(DataPoint(
+                    "mppt_conn_temp",
+                    {"mppt_id": mppt_id},
+                    self.timestamp,
+                    {"value": self.get_data_f(0, True)}))
+
         elif self.isDCFrame():
             if self.addr & 0xF == 0x0:
                 datapoints.append(DataPoint("dc_lifesign", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
                 datapoints.append(DataPoint("dc_potentiometer", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)}))
                 datapoints.append(DataPoint("dc_acceleration", {}, self.timestamp, {"value":self.get_data_i(16, False, 2)}))
                 datapoints.append(DataPoint("dc_deceleration", {}, self.timestamp, {"value":self.get_data_i(16, False, 3)}))
+
             elif self.addr & 0xF == 0x1:
                 datapoints.append(DataPoint("targetspeed", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
                 datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)}))
@@ -297,61 +457,4 @@ class CANFrame(DataInput):
 
         print("DATAPOINTS:")
         print(datapoints)
-        return datapoints
-
-
-class CSVLine(DataInput):
-    def __init__(self, opt: dict):
-        DataInput.__init__(self)
-        self.opt = opt
-
-    def __init__(self, opt: dict, serial_str: str):
-        DataInput.__init__(self)
-        self.opt = opt
-        self.serial_str = serial_str
-        self.timestamp = int(time.time())
-
-    def asDatapoints(self):
-        datapoints = []
-        try:
-            substrs = [s.strip() for s in self.serial_str.split(",")]
-            substrs[0] = substrs[0][2:]
-            print("time: " + str(self.timestamp))
-
-            for i, substr in enumerate(substrs):
-                try:
-                    measurement = self.opt["data"][i]["csv_header"]
-                except IndexError:
-                    print("no def found for index: " + str(i))
-                    print("val:" + substr)
-                    continue
-
-                if measurement == "timestamptxt" or measurement == "timestamp" or measurement == "endl":
-                    pass
-                else:
-                    match self.opt["data"][i]["type"]:
-                        case "int":
-                            dp = DataPoint(measurement, {}, self.timestamp, {"value": int(substr)})
-                            datapoints.append(dp)
-                        case "float":
-                            dp = DataPoint(measurement, {}, self.timestamp, {"value": float(substr)})
-                            datapoints.append(dp)
-                        case "bool":
-                            val = None
-
-                            if substr == "1":
-                                val = True
-                            elif substr == "0":
-                                val = False
-                            else:
-                                val = "err"
-
-                            dp = DataPoint(measurement, {}, self.timestamp, {"value": val})
-                            datapoints.append(dp)
-                        case _:  # str and default handling
-                            dp = DataPoint(measurement, {}, self.timestamp, {"value": substr})
-                            datapoints.append(dp)
-        except:
-            print("datapoint error")
-
         return datapoints
