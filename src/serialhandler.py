@@ -84,7 +84,7 @@ class SerialHandler(QtCore.QThread):
     def handle_input_hex(self, input_val):
         if len(input_val) == 21:
             self.new_input.emit(input_val)
-            # todo implement buffer
+            # implement buffer if needed
 
     def _connect_serial(self):
         try:

@@ -451,6 +451,12 @@ class CANFrame(DataInput):
                 datapoints.append(DataPoint("brake_pedal", {}, self.timestamp, {"value":self.get_data_b(57)}))
                 datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
                 datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
+        elif self.isACFrame():
+            pass
+            #todo implement AC frames
+        elif self.isMCFrame():
+            pass
+            #todo implement MC frames
 
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
