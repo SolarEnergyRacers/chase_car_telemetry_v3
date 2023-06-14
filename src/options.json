@@ -6,7 +6,7 @@
         "hex_string": false
     },
     "serial": {
-        "com": "COM4",
+        "com": "COM3",
         "baud": 115200
     },
     "influx": {
