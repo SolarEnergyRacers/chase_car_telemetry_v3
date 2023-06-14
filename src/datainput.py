@@ -442,18 +442,19 @@ class CANFrame(DataInput):
 
             elif self.addr & 0xF == 0x1:
                 datapoints.append(DataPoint("targetspeed", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
-                datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)}))
-                datapoints.append(DataPoint("accel_display", {}, self.timestamp, {"value":self.get_data_i(8, False, 4)}))
+                datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)/1000}))
+                datapoints.append(DataPoint("accel_display", {}, self.timestamp, {"value":self.get_data_i(8, True, 4)}))
                 datapoints.append(DataPoint("speed", {}, self.timestamp, {"value":self.get_data_i(8, False, 6)}))
 
                 drive_direction = 'fwd' if self.get_data_b(56) else 'rwd'
                 datapoints.append(DataPoint("drive_direction", {}, self.timestamp, {"value":drive_direction}))
                 datapoints.append(DataPoint("brake_pedal", {}, self.timestamp, {"value":self.get_data_b(57)}))
                 datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
-                datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
+                datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(59)}))
         elif self.isACFrame():
             pass
-            #todo implement AC frames
+
+
         elif self.isMCFrame():
             pass
             #todo implement MC frames
