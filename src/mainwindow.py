@@ -13,7 +13,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         super(MainWindow, self).__init__(parent=parent)
         self.setupUi(self)
 
-        log_file_name = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S') + "_ser_comm.log"
+        log_file_name = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S') + "_ser_comm.csv"
         self.log_file = open(log_file_name, 'w+')
 
         self.btnSend.clicked.connect(self.on_click_send)
@@ -50,7 +50,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         self.plainTextEdit.appendPlainText(f'{curr_time} << {data.hex(" ")} addr: {hex(addr)}')
 
         try:
-            self.log_file.write(f'{curr_time},{data.hex(" ")},{hex(addr)}\n')
+            self.log_file.write(f'{curr_time};{data.hex(" ")};{hex(addr)}\n')
         except:
             lg.error("Couldn't write to logfile!")
 
