@@ -34,7 +34,7 @@ class DataHandler:
         self.uploadDataInput(di)
 
     def uploadDataInput(self, di: DataInput):
-        lg.info("uploading Datapoints")
+        lg.debug("uploading Datapoints")
         self.uploadDatapoints(di.asDatapoints())
 
     def uploadDatapoints(self, datapoints: list[DataPoint]):

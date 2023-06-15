@@ -27,7 +27,7 @@ class SerialHandler(QtCore.QThread):
             try:
                 if self.com_available and self._com.inWaiting() > 0:
                     input_val = self._com.read_until()
-                    lg.info(f"Serial input: {input_val} length: {len(input_val)}")
+                    lg.debug(f"Serial input: {input_val} length: {len(input_val)}")
                     if self.opt["comm"]["hex_string"]:
                         self.handle_input_hex(input_val)
                     else:

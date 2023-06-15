@@ -35,14 +35,17 @@ class CANFrame(DataInput):
         else:
             self.addr = int.from_bytes(serial_bytes[0:2], 'big') & 0x7FF
             self.data = int.from_bytes(serial_bytes[2:10], 'little')
-            print(f"my addr:{hex(self.addr)}")
 
-    def get_data_i(self, length: int, signed: bool, index: int):
+    def get_data_i(self, length: int, signed: bool, index: int, little_endian: bool = True):
         raw_data = self.serial_bytes[2:10]
         num_bytes = length // 8
         offset = num_bytes * index
 
-        res = int.from_bytes(raw_data[0+offset:num_bytes+offset], byteorder='little', signed=signed)
+        if little_endian:
+            res = int.from_bytes(raw_data[0+offset:num_bytes+offset], byteorder='little', signed=signed)
+        else:
+            res = int.from_bytes(raw_data[0+offset:num_bytes+offset], byteorder='big', signed=signed)
+
         return res
 
     def get_data_b(self, index: int):
@@ -463,28 +466,27 @@ class CANFrame(DataInput):
             pass
         elif self.isMCFrame():
             if self.addr & 0xFF == 0x09: # ERPM, Current, Duty Cycle
-                datapoints.append(DataPoint("mc_erpm", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)}))
-                datapoints.append(DataPoint("mc_current", {}, self.timestamp, {"value": self.get_data_i(16, True, 2)/10}))
-                datapoints.append(DataPoint("mc_duty_cycle", {}, self.timestamp, {"value": self.get_data_i(16, True, 3)/1000}))
+                datapoints.append(DataPoint("mc_erpm", {}, self.timestamp, {"value": self.get_data_i(32, True, 0, False)}))
+                datapoints.append(DataPoint("mc_current", {}, self.timestamp, {"value": self.get_data_i(16, True, 2, False)/10}))
+                datapoints.append(DataPoint("mc_duty_cycle", {}, self.timestamp, {"value": self.get_data_i(16, True, 3, False)/1000}))
 
             elif self.addr & 0xFF == 0x0e: # Ah Used, Ah Charged
-                datapoints.append(DataPoint("mc_Ah_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)/10000}))
-                datapoints.append(DataPoint("mc_Ah_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1)/10000}))
+                datapoints.append(DataPoint("mc_Ah_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0, False)/10000}))
+                datapoints.append(DataPoint("mc_Ah_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1, False)/10000}))
 
             elif self.addr & 0xFF == 0x0f: # Wh Used, Wh Charged
-                datapoints.append(DataPoint("mc_Wh_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)/10000}))
-                datapoints.append(DataPoint("mc_Wh_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1)/10000}))
+                datapoints.append(DataPoint("mc_Wh_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0, False)/10000}))
+                datapoints.append(DataPoint("mc_Wh_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1, False)/10000}))
 
             elif self.addr & 0xFF == 0x10:  # Temp Fet, Temp Motor, Current In, PID position
-                datapoints.append(DataPoint("mc_fet_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 0)/10}))
-                datapoints.append(DataPoint("mc_motor_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 1)/10}))
-                datapoints.append(DataPoint("mc_curr_in", {}, self.timestamp, {"value": self.get_data_i(16, True, 2)/10}))
-                datapoints.append(DataPoint("mc_pid_pos", {}, self.timestamp, {"value": self.get_data_i(16, True, 3)/50}))
+                datapoints.append(DataPoint("mc_fet_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 0, False)/10}))
+                datapoints.append(DataPoint("mc_motor_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 1, False)/10}))
+                datapoints.append(DataPoint("mc_curr_in", {}, self.timestamp, {"value": self.get_data_i(16, True, 2, False)/10}))
+                datapoints.append(DataPoint("mc_pid_pos", {}, self.timestamp, {"value": self.get_data_i(16, True, 3, False)/50}))
 
             elif self.addr & 0xFF == 0x1b:  # Tachometer, Voltage In
-                pass
-            elif self.addr & 0xFF == 0x1c:  # ADC1, ADC2, ADC3, PPM
-                pass
+                datapoints.append(DataPoint("mc_tacho", {"unit": "EREV"}, self.timestamp, {"value": self.get_data_i(32, True, 0, False) / 6}))
+                datapoints.append(DataPoint("mc_volt_in", {}, self.timestamp, {"value": self.get_data_i(16, True, 2, False) / 10}))
 
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))

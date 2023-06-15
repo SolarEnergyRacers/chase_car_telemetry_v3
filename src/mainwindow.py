@@ -1,4 +1,4 @@
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import pyqtSlot
 
 import logging as lg
@@ -13,14 +13,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         super(MainWindow, self).__init__(parent=parent)
         self.setupUi(self)
 
-        #self.btnSend.clicked.connect(lambda: self.on_click_send())
-        #self.btnSave.clicked.connect(lambda: self.on_click_save())
+        log_file_name = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S') + "_ser_comm.log"
+        self.log_file = open(log_file_name, 'w+')
 
         self.btnSend.clicked.connect(self.on_click_send)
         self.btnSave.clicked.connect(self.on_click_save)
+        self.btnSave.setVisible(False)
 
         self.plainTextEdit.setPlainText("")
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        self.log_file.close()
 
     def on_click_send(self):
         txt = self.leditInput.text()
@@ -39,12 +42,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         pass
 
     def handle_new_input(self, data):
-        lg.info(f'gui received: {data.hex(" ")}')
+        lg.debug(f'gui received: {data.hex(" ")}')
 
         curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
         addr = int.from_bytes(data[0:2], 'big') & 0x7FF
 
         self.plainTextEdit.appendPlainText(f'{curr_time} << {data.hex(" ")} addr: {hex(addr)}')
+
+        try:
+            self.log_file.write(f'{curr_time},{data.hex(" ")},{hex(addr)}\n')
+        except:
+            lg.error("Couldn't write to logfile!")
 
     def on_update_com(self, available):
         if available:
