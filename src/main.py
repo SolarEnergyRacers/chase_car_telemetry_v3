@@ -12,7 +12,7 @@ from mainwindow import MainWindow
 if __name__ == "__main__":
 
     # read config file
-    with open("src/options.json", "r") as opt_file:
+    with open("options.json", "r") as opt_file:
         opt = json.load(opt_file)
 
     # set console logging level

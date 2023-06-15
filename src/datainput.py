@@ -4,8 +4,6 @@ import time
 import logging as lg
 from datapoint import DataPoint
 
-from dataclasses import dataclass
-
 # Use as abstract class
 class DataInput:
     def __init__(self):
@@ -77,13 +75,12 @@ class CANFrame(DataInput):
         return int(self.opt["CAN"]["DC"]["base_addr"], 16) == (self.addr & 0xFF0)
 
     def isMCFrame(self):
-        return int(self.opt["CAN"]["MC"]["base_addr"], 16) == (self.addr & 0xFF0)
+        return int(self.opt["CAN"]["MC"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def asDatapoints(self):
         datapoints = []
         bms_baseaddr = int(self.opt["CAN"]["BMS"]["base_addr"], 16)
 
-        # BMS
         if self.isBMSFrame():
             if self.addr == bms_baseaddr:  # BMU Heartbeat/Serialnumber
                 datapoints.append(DataPoint(
@@ -143,7 +140,6 @@ class CANFrame(DataInput):
                 #datapoints.append(DataPoint("balance_perc", {}, self.timestamp, {"value": self.get_data_f(2)}))
             elif self.addr & 0xFF == 0xF6:  # Charger Control Info (not transmitted)
                 pass
-
             elif self.addr & 0xFF == 0xF7:  # Precharge Status
                 # contactors
                 datapoints.append(DataPoint("err_cont_1_driver", {}, self.timestamp, {"value": self.get_data_b(0)}))
@@ -199,19 +195,17 @@ class CANFrame(DataInput):
             elif self.addr & 0xFF == 0xF9:  # min/max cell temp
                 min_cell_temp = DataPoint(
                     "min_temp",
-                    {"cmu_num": self.get_data_i(8, False, 4),
-                     "cell_num": self.get_data_i(8, False, 5)},
+                    {"cmu_num": self.get_data_i(8, False, 4)},
                     self.timestamp,
-                    {"value": self.get_data_i(16, False, 0) / 1000})
+                    {"value": self.get_data_i(16, False, 0) / 10})
 
                 datapoints.append(min_cell_temp)
 
                 max_cell_temp = DataPoint(
                     "max_temp",
-                    {"cmu_num": self.get_data_i(8, False, 6),
-                     "cell_num": self.get_data_i(8, False, 7)},
+                    {"cmu_num": self.get_data_i(8, False, 6)},
                     self.timestamp,
-                    {"value": self.get_data_i(16, False, 1) / 1000})
+                    {"value": self.get_data_i(16, False, 1) / 10})
 
                 datapoints.append(max_cell_temp)
             elif self.addr & 0xFF == 0xFA:  # Pack Voltage & Current
@@ -222,18 +216,33 @@ class CANFrame(DataInput):
             elif self.addr & 0xFF == 0xFC:  # Fan & 12V Status
                 pass
             elif self.addr & 0xFF == 0xFD:  # Ext. Pack Status
-                pass
-                # todo implement ext pack status
-        # MPPT
+                datapoints.append(DataPoint("cell_over_voltage", {}, self.timestamp, {"value": self.get_data_b(0)}))
+                datapoints.append(DataPoint("cell_under_voltage", {}, self.timestamp, {"value": self.get_data_b(1)}))
+                datapoints.append(DataPoint("cell_over_temp", {}, self.timestamp, {"value": self.get_data_b(2)}))
+                datapoints.append(DataPoint("measurement_untrusted", {}, self.timestamp, {"value": self.get_data_b(3)}))
+
+                datapoints.append(DataPoint("cmu_comm_timeout", {}, self.timestamp, {"value": self.get_data_b(4)}))
+                datapoints.append(DataPoint("vehicle_comm_timeout", {}, self.timestamp, {"value": self.get_data_b(5)}))
+                datapoints.append(DataPoint("bmu_in_setup_mode", {}, self.timestamp, {"value": self.get_data_b(6)}))
+                datapoints.append(DataPoint("cmu_can_power", {}, self.timestamp, {"value": self.get_data_b(7)}))
+
+                datapoints.append(DataPoint("pack_isolation_fail", {}, self.timestamp, {"value": self.get_data_b(8)}))
+                datapoints.append(DataPoint("soc_invalid", {}, self.timestamp, {"value": self.get_data_b(9)}))
+                datapoints.append(DataPoint("can_power_low", {}, self.timestamp, {"value": self.get_data_b(10)}))
+                datapoints.append(DataPoint("contactor_stuck", {}, self.timestamp, {"value": self.get_data_b(11)}))
+
+                datapoints.append(DataPoint("unexpected_cell", {}, self.timestamp, {"value": self.get_data_b(12)}))
+
+                datapoints.append(DataPoint("bmu_hw_version", {}, self.timestamp, {"value": self.get_data_i(8, False, 4)}))
+                datapoints.append(DataPoint("bmu_model_id", {}, self.timestamp, {"value": self.get_data_i(8, False, 5)}))
         elif self.isMPPTFrame():  # handled separately
-            print("MPPT!!")
 
             mppt_id = "Err:" + str(self.addr)
-            if self.addr == int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16):
+            if self.addr & 0xFF0 == int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16):
                 mppt_id = "1"
-            elif self.addr == int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16):
+            elif self.addr & 0xFF0 == int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16):
                 mppt_id = "2"
-            elif self.addr == int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16):
+            elif self.addr & 0xFF0 == int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16):
                 mppt_id = "3"
 
             if self.addr & 0xF == 0x0:  # MPPT input
@@ -241,39 +250,39 @@ class CANFrame(DataInput):
                     "mppt_in_voltage",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(1, True)}))
+                    {"value": self.get_data_f(0, False)}))
 
                 datapoints.append( DataPoint(
                     "mppt_in_current",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(0, True)}))
+                    {"value": self.get_data_f(1, False)}))
 
             elif self.addr & 0xF == 0x1:  # MPPT output
                 datapoints.append( DataPoint(
                     "mppt_out_voltage",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(1, True)}))
+                    {"value": self.get_data_f(0, False)}))
 
                 datapoints.append( DataPoint(
                     "mppt_out_current",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(0, True)}))
+                    {"value": self.get_data_f(1, False)}))
 
             elif self.addr & 0xF == 0x2:  # Temps
                 datapoints.append(DataPoint(
                     "mppt_mosfet_temp",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(1, True)}))
+                    {"value": self.get_data_f(0, False)}))
 
                 datapoints.append(DataPoint(
                     "mppt_controller_temp",
                     {"mppt_id": mppt_id},
                     self.timestamp,
-                    {"value": self.get_data_f(0, True)}))
+                    {"value": self.get_data_f(1, False)}))
 
             elif self.addr & 0xF == 0x3:  # Aux Power voltages
                 datapoints.append(DataPoint(
@@ -432,7 +441,6 @@ class CANFrame(DataInput):
                     {"mppt_id": mppt_id},
                     self.timestamp,
                     {"value": self.get_data_f(0, True)}))
-
         elif self.isDCFrame():
             if self.addr & 0xF == 0x0:
                 datapoints.append(DataPoint("dc_lifesign", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
@@ -453,15 +461,35 @@ class CANFrame(DataInput):
                 datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(59)}))
         elif self.isACFrame():
             pass
-
-
         elif self.isMCFrame():
-            pass
-            #todo implement MC frames
+            if self.addr & 0xFF == 0x09: # ERPM, Current, Duty Cycle
+                datapoints.append(DataPoint("mc_erpm", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)}))
+                datapoints.append(DataPoint("mc_current", {}, self.timestamp, {"value": self.get_data_i(16, True, 2)/10}))
+                datapoints.append(DataPoint("mc_duty_cycle", {}, self.timestamp, {"value": self.get_data_i(16, True, 3)/1000}))
+
+            elif self.addr & 0xFF == 0x0e: # Ah Used, Ah Charged
+                datapoints.append(DataPoint("mc_Ah_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)/10000}))
+                datapoints.append(DataPoint("mc_Ah_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1)/10000}))
+
+            elif self.addr & 0xFF == 0x0f: # Wh Used, Wh Charged
+                datapoints.append(DataPoint("mc_Wh_used", {}, self.timestamp, {"value": self.get_data_i(32, True, 0)/10000}))
+                datapoints.append(DataPoint("mc_Wh_charged", {}, self.timestamp, {"value": self.get_data_i(32, True, 1)/10000}))
+
+            elif self.addr & 0xFF == 0x10:  # Temp Fet, Temp Motor, Current In, PID position
+                datapoints.append(DataPoint("mc_fet_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 0)/10}))
+                datapoints.append(DataPoint("mc_motor_temp", {}, self.timestamp, {"value": self.get_data_i(16, True, 1)/10}))
+                datapoints.append(DataPoint("mc_curr_in", {}, self.timestamp, {"value": self.get_data_i(16, True, 2)/10}))
+                datapoints.append(DataPoint("mc_pid_pos", {}, self.timestamp, {"value": self.get_data_i(16, True, 3)/50}))
+
+            elif self.addr & 0xFF == 0x1b:  # Tachometer, Voltage In
+                pass
+            elif self.addr & 0xFF == 0x1c:  # ADC1, ADC2, ADC3, PPM
+                pass
 
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
 
         print("DATAPOINTS:")
         print(datapoints)
+
         return datapoints
