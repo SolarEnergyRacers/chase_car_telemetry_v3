@@ -82,9 +82,10 @@ class CANFrame(DataInput):
 
     def asDatapoints(self):
         datapoints = []
-        bms_baseaddr = int(self.opt["CAN"]["BMS"]["base_addr"], 16)
+
 
         if self.isBMSFrame():
+            bms_baseaddr = int(self.opt["CAN"]["BMS"]["base_addr"], 16)
             if self.addr == bms_baseaddr:  # BMU Heartbeat/Serialnumber
                 datapoints.append(DataPoint(
                     "bms_heartbeat",
@@ -463,7 +464,13 @@ class CANFrame(DataInput):
                 datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
                 datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(59)}))
         elif self.isACFrame():
-            pass
+            datapoints.append(DataPoint("ac_life_sign", {}, self.timestamp, {"value": self.get_data_i(16, False, 0)}))
+            datapoints.append(DataPoint("Kp", {}, self.timestamp, {"value": self.get_data_i(8, False, 2)}))
+            datapoints.append(DataPoint("Ki", {}, self.timestamp, {"value": self.get_data_i(8, False, 3)}))
+            datapoints.append(DataPoint("Kd", {}, self.timestamp, {"value": self.get_data_i(8, False, 4)}))
+
+            mode = 'speed' if self.get_data_b(33) else 'power'
+            datapoints.append(DataPoint("ac_mode", {}, self.timestamp, {"value": mode}))
         elif self.isMCFrame():
             if self.addr & 0xFF == 0x09: # ERPM, Current, Duty Cycle
                 datapoints.append(DataPoint("mc_erpm", {}, self.timestamp, {"value": self.get_data_i(32, True, 0, False)}))
@@ -487,7 +494,6 @@ class CANFrame(DataInput):
             elif self.addr & 0xFF == 0x1b:  # Tachometer, Voltage In
                 datapoints.append(DataPoint("mc_tacho", {"unit": "EREV"}, self.timestamp, {"value": self.get_data_i(32, True, 0, False) / 6}))
                 datapoints.append(DataPoint("mc_volt_in", {}, self.timestamp, {"value": self.get_data_i(16, True, 2, False) / 10}))
-
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
 

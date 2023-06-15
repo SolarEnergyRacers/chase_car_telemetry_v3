@@ -38,7 +38,4 @@ class DataHandler:
         self.uploadDatapoints(di.asDatapoints())
 
     def uploadDatapoints(self, datapoints: list[DataPoint]):
-        
-        #if len(datapoints) == 1 and isinstance(datapoints[0], list):
-        #    datapoints = datapoints[0]
         self.client.write_points([dp.__dict__ for dp in datapoints], time_precision='s')
