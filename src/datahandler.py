@@ -1,6 +1,6 @@
 import time
 
-from influxdb import InfluxDBClient
+from influxdb_client import InfluxDBClient, Point, WritePrecision
 import requests
 import logging as lg
 
@@ -13,13 +13,10 @@ class DataHandler:
         self.opt = opt
 
         try:
-            self.client = InfluxDBClient(host=opt["influx"]["host"], port=opt["influx"]["port"])
-            dbs = self.client.get_list_database()
-
-            if not {'name' : self.opt["influx"]["db_name"]} in dbs:
-                self.client.create_database(self.opt["influx"]["db_name"])
-
-            self.client.switch_database(self.opt["influx"]["db_name"])
+            self.client = InfluxDBClient(url="http://"+opt["influx"]["host"]+":"+str(opt["influx"]["port"]),
+                                         token=opt["influx"]["token"],
+                                         org=opt["influx"]["org"])
+            self.write_api = self.client.write_api()
             self.available = True
 
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout, ConnectionRefusedError) as err:
@@ -38,4 +35,6 @@ class DataHandler:
         self.uploadDatapoints(di.asDatapoints())
 
     def uploadDatapoints(self, datapoints: list[DataPoint]):
-        self.client.write_points([dp.__dict__ for dp in datapoints], time_precision='s')
+        for dp in datapoints:
+            lg.debug(dp.__dict__)
+            self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"], record = dp.__dict__)

@@ -239,7 +239,7 @@ class CANFrame(DataInput):
 
                 datapoints.append(DataPoint("bmu_hw_version", {}, self.timestamp, {"value": self.get_data_i(8, False, 4)}))
                 datapoints.append(DataPoint("bmu_model_id", {}, self.timestamp, {"value": self.get_data_i(8, False, 5)}))
-        elif self.isMPPTFrame():  # handled separately
+        elif self.isMPPTFrame(): 
 
             mppt_id = "Err:" + str(self.addr)
             if self.addr & 0xFF0 == int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16):
@@ -454,7 +454,7 @@ class CANFrame(DataInput):
 
             elif self.addr & 0xF == 0x1:
                 datapoints.append(DataPoint("targetspeed", {}, self.timestamp, {"value":self.get_data_i(16, False, 0)}))
-                datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)/1000}))
+                datapoints.append(DataPoint("targetpower", {}, self.timestamp, {"value":self.get_data_i(16, False, 1)/1000.0}))
                 datapoints.append(DataPoint("accel_display", {}, self.timestamp, {"value":self.get_data_i(8, True, 4)}))
                 datapoints.append(DataPoint("speed", {}, self.timestamp, {"value":self.get_data_i(8, False, 6)}))
 
