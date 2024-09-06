@@ -10,6 +10,7 @@
         "baud": 115200
     },
     "influx": {
+        "no_db": true,
         "host": "localhost",
         "port": 8086,
         "token": "2EDnxUyx8TEwVS3LOqUUt3-GVYfkVa8mNCZ9jToemwVEQM4BXxKxfmEHmoNAnFVvQ9r67EHbctLnQLGHXEaRpg==",

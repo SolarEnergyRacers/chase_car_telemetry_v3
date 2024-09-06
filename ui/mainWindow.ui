@@ -229,7 +229,7 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="10,1,1">
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="10,1,1,0,0,0,0">
       <item>
        <widget class="QLineEdit" name="leditInput"/>
       </item>
@@ -247,6 +247,40 @@
        <widget class="QPushButton" name="btnSend">
         <property name="text">
          <string>Send</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="Line" name="line">
+        <property name="styleSheet">
+         <string notr="true">background-color: #505050;</string>
+        </property>
+        <property name="lineWidth">
+         <number>3</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton">
+        <property name="text">
+         <string>Box</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_2">
+        <property name="text">
+         <string>Driver Change</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_3">
+        <property name="text">
+         <string>Charge</string>
         </property>
        </widget>
       </item>

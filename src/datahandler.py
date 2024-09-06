@@ -24,11 +24,12 @@ class DataHandler(QObject):
         self.opt = opt
 
         try:
-            self.client = InfluxDBClient(url="http://"+opt["influx"]["host"]+":"+str(opt["influx"]["port"]),
-                                         token=opt["influx"]["token"],
-                                         org=opt["influx"]["org"])
-            self.write_api = self.client.write_api()
-            self.available = True
+            if not self.opt["influx"]["no_db"]:
+                self.client = InfluxDBClient(url="http://"+opt["influx"]["host"]+":"+str(opt["influx"]["port"]),
+                                             token=opt["influx"]["token"],
+                                             org=opt["influx"]["org"])
+                self.write_api = self.client.write_api()
+                self.available = True
 
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout, ConnectionRefusedError) as err:
             self.available = False
@@ -50,7 +51,8 @@ class DataHandler(QObject):
 
         for dp in datapoints:
             lg.debug(dp.__dict__)
-            self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"], record = dp.__dict__)
+            if not self.opt["influx"]["no_db"]:
+                self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"], record = dp.__dict__)
 
             if dp.measurement == "speed":
                 self.recSpeedInfo.emit(dp)

@@ -18,8 +18,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         self.log_file = open(log_file_name, 'w+')
 
         self.btnSend.clicked.connect(self.on_click_send)
-        self.btnSave.clicked.connect(self.on_click_save)
-        self.btnSave.setVisible(False)
+        #self.btnSave.clicked.connect(self.on_click_save)
+        #self.btnSave.setVisible(False)
 
         self.plainTextEdit.setPlainText("")
 
