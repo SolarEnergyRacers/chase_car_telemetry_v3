@@ -13,7 +13,6 @@ class DataInput:
     def asDatapoints(self):
         raise NotImplementedError("Please Implement this method")
 
-
 class CANFrame(DataInput):
     def __init__(self, opt: dict):
         DataInput.__init__(self)
@@ -65,11 +64,7 @@ class CANFrame(DataInput):
         return int(self.opt["CAN"]["BMS"]["base_addr"], 16) == (self.addr & 0xF00)
 
     def isMPPTFrame(self):
-        mppt1 = int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16) == self.addr & 0xFF0
-        mppt2 = int(self.opt["CAN"]["MPPT"]["mppt2_id"], 16) == self.addr & 0xFF0
-        mppt3 = int(self.opt["CAN"]["MPPT"]["mppt3_id"], 16) == self.addr & 0xFF0
-
-        return mppt1 or mppt2 or mppt3
+        return int(self.opt["CAN"]["MPPT"]["mppt1_id"], 16) == self.addr & 0xFF0
 
     def isACFrame(self):
         return int(self.opt["CAN"]["AC"]["base_addr"], 16) == (self.addr & 0xFF0)
@@ -82,7 +77,6 @@ class CANFrame(DataInput):
 
     def asDatapoints(self):
         datapoints = []
-
 
         if self.isBMSFrame():
             bms_baseaddr = int(self.opt["CAN"]["BMS"]["base_addr"], 16)
@@ -463,6 +457,7 @@ class CANFrame(DataInput):
                 datapoints.append(DataPoint("brake_pedal", {}, self.timestamp, {"value":self.get_data_b(57)}))
                 datapoints.append(DataPoint("motor_on", {}, self.timestamp, {"value": self.get_data_b(58)}))
                 datapoints.append(DataPoint("const_mode_on", {}, self.timestamp, {"value": self.get_data_b(59)}))
+                datapoints.append(DataPoint("driver_confirm", {}, self.timestamp, {"value": self.get_data_b(60)}))
         elif self.isACFrame():
             datapoints.append(DataPoint("ac_life_sign", {}, self.timestamp, {"value": self.get_data_i(16, False, 0)}))
             datapoints.append(DataPoint("Kp", {}, self.timestamp, {"value": self.get_data_i(8, False, 2)}))
@@ -497,7 +492,7 @@ class CANFrame(DataInput):
         else:  # Prob. transmission error or wrong addresses configured
             lg.warning("Couldn't assign CAN Frame from: " + hex(self.addr))
 
-        print("DATAPOINTS:")
-        print(datapoints)
+        lg.debug("DATAPOINTS:")
+        lg.debug(datapoints)
 
         return datapoints

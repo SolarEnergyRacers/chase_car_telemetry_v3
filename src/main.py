@@ -30,9 +30,15 @@ if __name__ == "__main__":
     sh.new_input.connect(mw.handle_new_input)
     sh.new_input.connect(dh.handle_new_input)
 
+    dh.recSpeedInfo.connect(mw.update_speed)
+    dh.recBattInfo.connect(mw.update_batt_info)
+    dh.recCellInfo.connect(mw.update_cell_info)
+    dh.recBattErrors.connect(mw.update_errors)
+    dh.recConfirm.connect(mw.update_confirm)
+    dh.recPVInfo.connect(mw.update_pv_info)
+
     sh.update_status.connect(mw.on_update_com)
     mw.send.connect(sh.send)
-
 
     mw.show()
     sh.start()

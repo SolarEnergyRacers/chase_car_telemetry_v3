@@ -4,6 +4,7 @@ from PyQt5.QtCore import pyqtSlot
 import logging as lg
 from datetime import datetime
 
+from src.datapoint import DataPoint
 from ui_mainwindow import Ui_mainWindow
 
 class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
@@ -37,7 +38,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
 
 
     def on_click_save(self):
-        print("save!!")
+        print("u clicked save!! but it didn't do nuthin")
         #todo
         pass
 
@@ -59,3 +60,27 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
             self.lblCommAvailable.setText("COM available: TRUE")
         else:
             self.lblCommAvailable.setText("COM available: FALSE")
+
+    def update_batt_info(self, data: DataPoint):
+        self.lcdUBatt.display(data.fields["value"])
+
+    def update_speed(self, data: DataPoint):
+        self.lcdSpeed.display(data.fields["value"])
+
+    def update_cell_info(self, data: list[DataPoint]):
+        for dp in data:
+            if dp.measurement == "min_voltage":
+                self.lcdMinVoltage.display(dp.fields["value"])
+            elif dp.measurement == "max_voltage":
+                self.lcdMaxVoltage.display(dp.fields["value"])
+
+    def update_errors(self, data: list[DataPoint]):
+        lg.debug("update errors")
+        pass
+
+    def update_pv_info(self, data: DataPoint):
+        self.lcdIPV.display(data.fields["value"])
+
+    def update_confirm(self, data: DataPoint):
+        if data.fields["value"]:
+            self.lblLastConfirm.setText("last received confirm: " + datetime.utcnow().strftime('%H:%M:%S.%f')[:-3])
