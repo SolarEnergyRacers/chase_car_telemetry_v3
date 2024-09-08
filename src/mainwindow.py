@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtSlot
 import logging as lg
 from datetime import datetime
 
-from src.datapoint import DataPoint
+from datapoint import DataPoint
 from ui_mainwindow import Ui_mainWindow
 
 class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):

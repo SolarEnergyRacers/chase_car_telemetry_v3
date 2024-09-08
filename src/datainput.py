@@ -48,7 +48,7 @@ class CANFrame(DataInput):
         return res
 
     def get_data_b(self, index: int):
-        return self.get_data_i(1, False, index) == 1
+        return (self.data & (0x1 << (index))) >> (index) == 1
 
     def get_data_f(self, index: int, little_endian: bool = False):
         raw = self.data >> (index * 32) & 0x00000000FFFFFFFF
