@@ -495,4 +495,5 @@ class CANFrame(DataInput):
         lg.debug("DATAPOINTS:")
         lg.debug(datapoints)
 
+
         return datapoints

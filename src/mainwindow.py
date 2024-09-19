@@ -18,6 +18,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         self.log_file = open(log_file_name, 'w+')
 
         self.btnSend.clicked.connect(self.on_click_send)
+        self.leditInput.returnPressed.connect(self.on_click_send)
+
+        self.btnMsgBox.clicked.connect(self.on_click_msg_box)
+        self.btnMsgCharge.clicked.connect(self.on_click_msg_charge)
+        self.btnMsgDriverchange.clicked.connect(self.on_click_msg_driverchange)
         #self.btnSave.clicked.connect(self.on_click_save)
         #self.btnSave.setVisible(False)
 
@@ -28,14 +33,35 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
 
     def on_click_send(self):
         txt = self.leditInput.text()
-        if self.cbAddNL:
+        if self.cbAddNL.isChecked():
             txt += chr(13)
 
         curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
         self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
         self.leditInput.setText('')
+
+        if txt[0] == ':' or txt[0] == '!':
+            self.lblLastSent.display("last Message sent: " +  datetime.utcnow().strftime('%H:%M:%S.%f')[:-3])
+
         self.send.emit(txt)
 
+    def on_click_msg_box(self):
+        txt = "!BOX"
+        curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+        self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
+        self.send.emit(txt)
+
+    def on_click_msg_driverchange(self):
+        txt = "!Driver Change"
+        curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+        self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
+        self.send.emit(txt)
+
+    def on_click_msg_charge(self):
+        txt = "!Charge"
+        curr_time = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+        self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
+        self.send.emit(txt)
 
     def on_click_save(self):
         print("u clicked save!! but it didn't do nuthin")
@@ -75,8 +101,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
                 self.lcdMaxVoltage.display(dp.fields["value"])
 
     def update_errors(self, data: list[DataPoint]):
-        lg.debug("update errors")
-        pass
+        self.lstErrors.clear()
+
+        for dp in data:
+            self.lstErrors.addItem(str(dp.fields["value"]) + ": " + dp.measurement)
 
     def update_pv_info(self, data: DataPoint):
         self.lcdIPV.display(data.fields["value"])
