@@ -40,8 +40,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_mainWindow):
         self.plainTextEdit.appendPlainText(f'{curr_time} >> {txt}')
         self.leditInput.setText('')
 
-        if txt[0] == ':' or txt[0] == '!':
-            self.lblLastSent.display("last Message sent: " +  datetime.utcnow().strftime('%H:%M:%S.%f')[:-3])
+        #if txt[0] == ':' or txt[0] == '!':
+            #self.lblLastSent.display("last Message sent: " +  datetime.utcnow().strftime('%H:%M:%S.%f')[:-3])
 
         self.send.emit(txt)
 

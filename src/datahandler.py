@@ -52,7 +52,15 @@ class DataHandler(QObject):
         for dp in datapoints:
             lg.debug(dp.__dict__)
             if not self.opt["influx"]["no_db"]:
-                self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"], record = dp.__dict__)
+                #self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"], record = dp.__dict__)
+
+                p = Point(dp.measurement).field("value", dp.fields["value"])
+
+                for tag in dp.tags:
+                    p = p.tag(tag, dp.tags[tag])
+
+                self.write_api.write(bucket=self.opt["influx"]["bucket"], org=self.opt["influx"]["org"],  record=p)
+
 
             if dp.measurement == "speed":
                 self.recSpeedInfo.emit(dp)
